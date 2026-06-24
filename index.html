@@ -42,6 +42,43 @@
   }
   .logo-text { font-size: 22px; font-weight: 700; color: var(--hs-dark); letter-spacing: -0.5px; }
   .logo-text span { color: var(--hs-orange); }
+
+  .header-controls { display: flex; align-items: center; gap: 14px; }
+
+  /* CURRENCY TOGGLE */
+  .currency-toggle {
+    font-family: 'Lexend', sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+    color: var(--hs-orange-dark);
+    background: var(--hs-orange-light);
+    border: 1px solid #FFD4C7;
+    border-radius: 20px;
+    padding: 5px 13px 5px 27px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .currency-toggle::before {
+    content: '$';
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+    font-size: 13px; font-weight: 700; line-height: 1;
+  }
+  .currency-toggle:hover { background: #FFE0D6; border-color: var(--hs-orange); }
+  .currency-toggle:active { transform: scale(0.95); }
+
+  /* EXCHANGE RATE EDITOR — only shows when unlocked */
+  .rate-edit {
+    display: none; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--hs-muted); white-space: nowrap;
+  }
+  body.edit-mode .rate-edit { display: inline-flex; }
+  .rate-input {
+    width: 50px; font-family: 'Lexend', sans-serif; font-size: 11px; font-weight: 600;
+    color: var(--hs-dark); background: var(--hs-bg); border: 1px solid var(--hs-border);
+    border-radius: 4px; padding: 2px 5px; text-align: center;
+  }
+  .rate-input:focus { outline: none; border-color: var(--hs-orange); background: #fff; }
+
   .lock-header {
     font-size: 16px; cursor: pointer; transition: transform 0.15s;
     display: inline-block; line-height: 1; opacity: 0.25;
@@ -183,8 +220,6 @@
   }
   .reset-btn:hover { border-color: var(--hs-orange); color: var(--hs-orange); }
 
-  /* Lock toggle lives in header now */
-
   /* EDIT-ONLY CONTROLS */
   .add-row-btn, .add-category-btn, .delete-row-btn { display: none; }
   body.edit-mode .add-row-btn, body.edit-mode .add-category-btn { display: block; }
@@ -238,7 +273,13 @@
 
 <div class="header">
   <span class="logo-text">Hub<span>Spot</span></span>
-  <span class="lock-header" id="lock-toggle" onclick="toggleEditMode()">🔒</span>
+  <div class="header-controls">
+    <span class="rate-edit">1 USD =
+      <input class="rate-input" id="rate-input" value="1.42" onchange="onRateChange()">
+      CAD</span>
+    <button class="currency-toggle" id="currency-toggle" onclick="toggleCurrency()">USD</button>
+    <span class="lock-header" id="lock-toggle" onclick="toggleEditMode()">🔒</span>
+  </div>
 </div>
 
 <div class="main">
@@ -410,6 +451,7 @@
 <script>
   let editMode = false;
   let groupCounter = 0;
+  let currency = 'USD';
 
   function toggleEditMode() {
     editMode = !editMode;
@@ -422,6 +464,47 @@
       input.tabIndex = editMode ? 0 : -1;
     });
     if (!editMode) document.activeElement.blur();
+  }
+
+  // ===== CURRENCY =====
+  function getRate() {
+    const r = parseFloat(document.getElementById('rate-input').value);
+    return (isNaN(r) || r <= 0) ? 1 : r;
+  }
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  function convertInputs(factor) {
+    ['list-month', 'onboarding'].forEach(id => {
+      const el = document.getElementById(id);
+      const val = parseFloat(el.value.replace(/[^0-9.]/g, '')) || 0;
+      el.value = round2(val * factor);
+    });
+  }
+
+  function toggleCurrency() {
+    const rate = getRate();
+    if (currency === 'USD') {
+      convertInputs(rate);          // USD -> CAD
+      currency = 'CAD';
+    } else {
+      convertInputs(1 / rate);      // CAD -> USD
+      currency = 'USD';
+    }
+    document.getElementById('currency-toggle').textContent = currency;
+    recalc();
+  }
+
+  // If the rate is edited while already showing CAD, re-base off USD then re-apply
+  let lastRate = 1.42;
+  function onRateChange() {
+    const newRate = getRate();
+    if (currency === 'CAD' && lastRate > 0) {
+      // undo old rate, apply new rate
+      convertInputs(1 / lastRate);
+      convertInputs(newRate);
+      recalc();
+    }
+    lastRate = newRate;
   }
 
   function toggleOption(el) {
